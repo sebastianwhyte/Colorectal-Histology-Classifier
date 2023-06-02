@@ -49,7 +49,7 @@ def configure_for_performance(ds, buffer_size: int, batch_size: int):
     
 
 
-def scale(image=None):
+def scale(image, resize_and_rescale):
     """
     Resizes and scales an image.
 
@@ -64,19 +64,12 @@ def scale(image=None):
 
     """
     
-    IMG_SIZE = 180
-    
-    resize_and_rescale = keras.Sequential([
-        layers.Resizing(height=IMG_SIZE, width=IMG_SIZE),
-        layers.Rescaling(scale=1./255)
-        ])
-    
     #print(image)
     
     result = resize_and_rescale(image)
     
 
-    # Verify that the pixels are in the [0, 1] range:
+    # Verify that the pixels are in the [0, 1] range.
     print('Min and max pixel values:', result.numpy().min(), result.numpy().max())
 
     return result
@@ -84,7 +77,7 @@ def scale(image=None):
     
 
 
-def preprocess_layers(image):
+def preprocess_layers(image, data_augmentation):
     """
     Preprocesses layers and applies them repeatedly to the same image.
     
@@ -102,10 +95,6 @@ def preprocess_layers(image):
 
     """
     
-    data_augmentation = keras.Sequential([
-        layers.RandomFlip(mode='horizontal_and_vertical'),
-        layers.RandomRotation(factor=0.2)
-        ])
     
     # Add image to a batch
     image = tf.cast(tf.expand_dims(image, 0), tf.float32)
@@ -118,7 +107,40 @@ def preprocess_layers(image):
         plt.imshow(augumented_image[0])
         plt.axis('off')
     
+
+
+
+def prepare(ds, shuffle=False, augment=False):
+    """
+    Prepares the model for training. 
+
+    Parameters
+    ----------
+    ds : TYPE
+        DESCRIPTION.
+    shuffle : TYPE, optional
+        DESCRIPTION. The default is False.
+    augment : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    # Resize and rescale all datasets.
+    ds = ds.map(lambda x, y: (resize_and_rescale(x), y), 
+                num_parallel_calls=AUTOTUNE)
+    
+    
+    if shuffle:
+        ds = shuffle(1000)
         
+    # Batch all datasets.
+    ds = ds.batch(BATCH_SIZE)
+    
+    
     
 
 def get_images_and_labels(train_ds, metadata):
@@ -207,7 +229,11 @@ if __name__ == '__main__':
     
     # Get images and class names/labels.
     images, class_names = get_images_and_labels(train_ds, metadata)  
-        
+    
+    # Get the number of classes from the metadata features.
+    num_classes = metadata.features['label'].num_classes
+    
+    print(num_classes)
     
     # DEBUG
     #for i in class_names:
@@ -219,20 +245,68 @@ if __name__ == '__main__':
     show_images(images, class_names) 
     plt.imshow(images[0])
     plt.show()
+       
+    
+    IMG_SIZE = 180
+    
+    # Create layers for resizing and rescaling the image.
+    resize_and_rescale = keras.Sequential([
+        layers.Resizing(height=IMG_SIZE, width=IMG_SIZE),
+        layers.Rescaling(scale=1./255)
+        ])
     
     
-    # Image will be enlarged because original size was 150 x 150 pixels.
-    result = plt.imshow(scale(images[0])) 
+    
+    # Visualize the data
+    #Note: Image will be enlarged because original size was 150 x 150 pixels.
+    result = plt.imshow(scale(images[0], resize_and_rescale)) 
     plt.show()
     
+    
+    
     # Retrieve the first image. Resize and rescale it.
-    result = scale(images[0])
+    result = scale(images[0], resize_and_rescale)
+    
+    
+    # Create preprocessing layers.
+    data_augmentation = keras.Sequential([
+        layers.RandomFlip(mode='horizontal_and_vertical'),
+        layers.RandomRotation(factor=0.2)
+        ])
+    
     
     # Preprocess the image.
-    preprocess_layers(result)
+    preprocess_layers(result, data_augmentation)
     
+
+    # Create a standard model -- not tuned for accuracy yet.
+    model = keras.Sequential([
+        # Add preprocessing layers first
+        resize_and_rescale,
+        data_augmentation,
+        layers.Conv2D(filters=16, kernel_size=3, padding='same', activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Conv2D(filters=32, kernel_size=3, padding='same', activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Conv2D(filters=64, kernel_size=3, padding='same', activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Flatten(),
+        layers.Dense(128, activation='relu'),
+        layers.Dense(num_classes)
+        ])
+    
+    
+    # Compile the model.
+    
+    
+    
+    
+    
+    '''
     
     # Batch, shuffle, and configure the training, validation, and test sets for preformance.
     train_ds = configure_for_performance(train_ds, BUFFER_SIZE, BATCH_SIZE)
     val_ds = configure_for_performance(val_ds, BUFFER_SIZE, BATCH_SIZE)
     test_ds = configure_for_performance(test_ds, BUFFER_SIZE, BATCH_SIZE)
+    
+    '''
