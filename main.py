@@ -101,6 +101,7 @@ def preprocess_layers(image, data_augmentation):
     
     plt.figure(figsize=(10,10))
     
+    # Preprocesses the first 9 images
     for i in range(9):
         augumented_image = data_augmentation(image)
         ax = plt.subplot(3, 3, i + 1)
@@ -203,7 +204,14 @@ def show_images(images, class_names) -> None:
         plt.xlabel(class_names[i])
     
     plt.show()  
-        
+ 
+
+       
+
+def predict_on_new_data(model):
+    
+    pass
+    
     
         
    
@@ -278,6 +286,13 @@ if __name__ == '__main__':
     # Preprocess the image.
     preprocess_layers(result, data_augmentation)
     
+    
+    # Batch, shuffle, and configure the training, validation, and test sets for preformance.
+    train_ds = configure_for_performance(train_ds, BUFFER_SIZE, BATCH_SIZE)
+    val_ds = configure_for_performance(val_ds, BUFFER_SIZE, BATCH_SIZE)
+    test_ds = configure_for_performance(test_ds, BUFFER_SIZE, BATCH_SIZE)
+    
+    
 
     # Create a standard model -- not tuned for accuracy yet.
     model = keras.Sequential([
@@ -297,16 +312,54 @@ if __name__ == '__main__':
     
     
     # Compile the model.
+    model.compile(optimizer='Adam', 
+                  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True), 
+                  metrics=['accuracy'])
     
     
+    # Build the model by providing the input_shape. 5000 images of 150x150 in RGB (3 channels).
+    model.build(input_shape=(5000, 150, 150, 3))
+    
+    model.summary()
+    
+    epochs = 20
+    
+    # Train the model
+    history = model.fit(
+        train_ds,
+        validation_data=val_ds,
+        epochs=epochs
+        )
     
     
+    # Evaluate and print the accuracy of the model
+    loss, acc = model.evaluate(test_ds)
+    print("Accuracy", acc)
     
-    '''
     
-    # Batch, shuffle, and configure the training, validation, and test sets for preformance.
-    train_ds = configure_for_performance(train_ds, BUFFER_SIZE, BATCH_SIZE)
-    val_ds = configure_for_performance(val_ds, BUFFER_SIZE, BATCH_SIZE)
-    test_ds = configure_for_performance(test_ds, BUFFER_SIZE, BATCH_SIZE)
+    # Visualize training results. 
+    accuracy = history.history['accuracy']
+    val_accuracy = history.history['val_accuracy']
     
-    '''
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    
+    epochs_range = range(epochs)
+    
+    plt.figure(figsize=(8,8))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, accuracy, label='Training Accuracy')
+    plt.plot(epochs_range, val_accuracy, label='Validation Accuracy')
+    plt.legend(loc='lower right')
+    plt.title('Training and Validation Accuracy')
+    
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, loss, label='Training Loss')
+    plt.plot(epochs_range, val_loss, label='Validation Loss')
+    plt.legend(loc='upper right')
+    plt.title('Training and Validation Loss')
+    plt.show()
+    
+    
+    # Predict on new data
+    #predict_on_new_data(model)
