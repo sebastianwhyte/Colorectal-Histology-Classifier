@@ -12,7 +12,7 @@ Created on Tue May 30 12:36:39 2023
 import tensorflow as tf
 from tensorflow import keras
 import tensorflow_datasets as tfds
-from tensorflow.keras import layers
+from keras import layers, optimizers, regularizers
 
 
 import numpy as np
@@ -46,6 +46,98 @@ def configure_for_performance(ds, buffer_size: int, batch_size: int):
     ds = ds.prefetch(buffer_size=AUTOTUNE)
     
     return ds
+    
+
+
+
+
+def create_model():
+    """
+    Creates the model for training.
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    # Create a standard model -- not tuned for accuracy yet.
+    model = keras.Sequential([
+        # Add preprocessing layers first
+        resize_and_rescale,
+        data_augmentation,
+        layers.Conv2D(filters=16, kernel_size=3, padding='same', activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Conv2D(filters=32, kernel_size=3, padding='same', activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Conv2D(filters=64, kernel_size=3, padding='same', activation='relu'),
+        layers.MaxPooling2D(),
+        layers.Flatten(),
+        # Added Dense layers with activation and Dropout layers ###############
+        #layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.001)),
+        #layers.Dropout(0.5),
+        #######################################################################
+        layers.Dense(num_classes)
+        ])
+    
+    
+    # Compile the model.
+    model.compile(optimizer='Adam', 
+                  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True), 
+                  metrics=['accuracy'])
+    
+    
+    return model
+    
+    
+
+
+
+def create_resize_and_rescale_layers():
+    """
+    
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    IMG_SIZE = 180
+    
+    # Create layers for resizing and rescaling the image.
+    resize_and_rescale = keras.Sequential([
+        layers.Resizing(height=IMG_SIZE, width=IMG_SIZE),
+        layers.Rescaling(scale=1./255)
+        ])
+    
+    
+    return resize_and_rescale
+    
+    
+
+
+def create_data_augmentation_layers():
+    """
+    
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    # Create preprocessing layers.
+    data_augmentation = keras.Sequential([
+        layers.RandomFlip(mode='horizontal_and_vertical'),
+        layers.RandomRotation(factor=0.2)
+        ])
+    
+    
+    return data_augmentation
+
+
+
     
 
 
@@ -210,10 +302,25 @@ def show_images(images, class_names) -> None:
 
 def predict_on_new_data(model):
     
-    pass
+    # Get an image from online tgat wasn't included in the trianing or validation sets
+    mucinous_img_url = "https://static.hindawi.com/articles/crionm/volume-2014/297031/figures/297031.fig.004.jpg"
+    mucinous_img_path = tf.keras.utils.get_file('Mucosa', origin=mucinous_img_url)
     
+    img = keras.utils.load_img(mucinous_img_path, target_size=(180, 180))
     
-        
+    img_array = keras.utils.img_to_array(img)
+    
+    # Create a batch
+    img_array = tf.expand_dims(img_array, 0)
+    
+    # Predict the class of the image
+    predictions = model.predict(img_array)
+    
+    score = tf.nn.softmax(predictions[0])
+    
+    print('This image most likely belongs to {} with a {:2f} percent confidence.'
+          .format(class_names[np.argmax(score)], 100 * np.max(score)))
+    
    
 # Program entry point
 if __name__ == '__main__':
@@ -223,7 +330,6 @@ if __name__ == '__main__':
     BATCH_SIZE = 32
     AUTOTUNE = tf.data.AUTOTUNE
     
-    plt.ion()
     
     
     # Create train, validation, and test sets by loaing the dataset.
@@ -255,14 +361,8 @@ if __name__ == '__main__':
     plt.show()
        
     
-    IMG_SIZE = 180
-    
-    # Create layers for resizing and rescaling the image.
-    resize_and_rescale = keras.Sequential([
-        layers.Resizing(height=IMG_SIZE, width=IMG_SIZE),
-        layers.Rescaling(scale=1./255)
-        ])
-    
+    resize_and_rescale = create_resize_and_rescale_layers()
+    data_augmentation = create_data_augmentation_layers()
     
     
     # Visualize the data
@@ -276,13 +376,6 @@ if __name__ == '__main__':
     result = scale(images[0], resize_and_rescale)
     
     
-    # Create preprocessing layers.
-    data_augmentation = keras.Sequential([
-        layers.RandomFlip(mode='horizontal_and_vertical'),
-        layers.RandomRotation(factor=0.2)
-        ])
-    
-    
     # Preprocess the image.
     preprocess_layers(result, data_augmentation)
     
@@ -294,35 +387,15 @@ if __name__ == '__main__':
     
     
 
-    # Create a standard model -- not tuned for accuracy yet.
-    model = keras.Sequential([
-        # Add preprocessing layers first
-        resize_and_rescale,
-        data_augmentation,
-        layers.Conv2D(filters=16, kernel_size=3, padding='same', activation='relu'),
-        layers.MaxPooling2D(),
-        layers.Conv2D(filters=32, kernel_size=3, padding='same', activation='relu'),
-        layers.MaxPooling2D(),
-        layers.Conv2D(filters=64, kernel_size=3, padding='same', activation='relu'),
-        layers.MaxPooling2D(),
-        layers.Flatten(),
-        layers.Dense(128, activation='relu'),
-        layers.Dense(num_classes)
-        ])
-    
-    
-    # Compile the model.
-    model.compile(optimizer='Adam', 
-                  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True), 
-                  metrics=['accuracy'])
-    
+    model = create_model()
     
     # Build the model by providing the input_shape. 5000 images of 150x150 in RGB (3 channels).
     model.build(input_shape=(5000, 150, 150, 3))
     
     model.summary()
     
-    epochs = 20
+    
+    epochs = 35
     
     # Train the model
     history = model.fit(
@@ -362,4 +435,4 @@ if __name__ == '__main__':
     
     
     # Predict on new data
-    #predict_on_new_data(model)
+    predict_on_new_data(model)
