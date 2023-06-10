@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-An image classification model that classifies colorectal histology images using Tensorflow
+An image classification model that classifies colorectal histology images using Tensorflow.
 
 Created on Tue May 30 12:36:39 2023
 
-@author: sebastian2
+@author: Sebastian Whyte
 """
 
+from PIL import Image
 
 import tensorflow as tf
 from tensorflow import keras
@@ -26,18 +27,17 @@ def configure_for_performance(ds, buffer_size: int, batch_size: int):
 
     Parameters
     ----------
-    ds : TYPE
+    ds : dataset
         dataset to configure
-    buffer_size : TYPE
-        DESCRIPTION.
-    batch_size : TYPE
-        DESCRIPTION.
+    buffer_size : int
+        space reserved for buffer
+    batch_size : int
+        size of batch
 
     Returns
     -------
-    ds : TYPE
+    dataset after modification
        
-
     """
     
     ds = ds.cache()
@@ -61,7 +61,7 @@ def create_model():
 
     """
     
-    # Create a standard model -- not tuned for accuracy yet.
+    # Create a standard model for baseline
     model = keras.Sequential([
         # Add preprocessing layers first
         resize_and_rescale,
@@ -73,10 +73,6 @@ def create_model():
         layers.Conv2D(filters=64, kernel_size=3, padding='same', activation='relu'),
         layers.MaxPooling2D(),
         layers.Flatten(),
-        # Added Dense layers with activation and Dropout layers ###############
-        #layers.Dense(128, activation='relu', kernel_regularizer=regularizers.l2(0.001)),
-        #layers.Dropout(0.5),
-        #######################################################################
         layers.Dense(num_classes)
         ])
     
@@ -95,7 +91,7 @@ def create_model():
 
 def create_resize_and_rescale_layers():
     """
-    
+    Creates the layers used for resizing and rescaling images.
 
     Returns
     -------
@@ -119,11 +115,11 @@ def create_resize_and_rescale_layers():
 
 def create_data_augmentation_layers():
     """
-    
+    Creates the layers used for data augmentation.
 
     Returns
     -------
-    None.
+    layers for augmentation
 
     """
     
@@ -140,10 +136,9 @@ def create_data_augmentation_layers():
 
     
 
-
 def scale(image, resize_and_rescale):
     """
-    Resizes and scales an image.
+    Resizes and rescales an image.
 
     Parameters
     ----------
@@ -152,7 +147,7 @@ def scale(image, resize_and_rescale):
 
     Returns
     -------
-    None.
+    result after resizing and rescaling the image
 
     """
     
@@ -200,39 +195,6 @@ def preprocess_layers(image, data_augmentation):
         plt.imshow(augumented_image[0])
         plt.axis('off')
     
-
-
-
-def prepare(ds, shuffle=False, augment=False):
-    """
-    Prepares the model for training. 
-
-    Parameters
-    ----------
-    ds : TYPE
-        DESCRIPTION.
-    shuffle : TYPE, optional
-        DESCRIPTION. The default is False.
-    augment : TYPE, optional
-        DESCRIPTION. The default is False.
-
-    Returns
-    -------
-    None.
-
-    """
-    
-    # Resize and rescale all datasets.
-    ds = ds.map(lambda x, y: (resize_and_rescale(x), y), 
-                num_parallel_calls=AUTOTUNE)
-    
-    
-    if shuffle:
-        ds = shuffle(1000)
-        
-    # Batch all datasets.
-    ds = ds.batch(BATCH_SIZE)
-    
     
     
 
@@ -242,17 +204,17 @@ def get_images_and_labels(train_ds, metadata):
 
     Parameters
     ----------
-    train_ds : TYPE
-        DESCRIPTION.
+    train_ds : dataset
+        dataset for training
     metadata : TYPE
-        DESCRIPTION.
+        information containing the features of the dataset
 
     Returns
     -------
-    images : TYPE
-        DESCRIPTION.
-    class_names : TYPE
-        DESCRIPTION.
+    images : list
+        list containing images from the dataset
+    class_names : list
+        labels from the dataset
 
     """
    
@@ -301,14 +263,25 @@ def show_images(images, class_names) -> None:
        
 
 def predict_on_new_data(model):
+    """
+    Predicts which class an image (obtained online and not in the dataset)  
+    belongs to
+
+    Parameters
+    ----------
+    model : tf.keras.Model
+        model used for training
+
+    Returns
+    -------
+    None.
+
+    """
     
-    # Get an image from online tgat wasn't included in the trianing or validation sets
-    mucinous_img_url = "https://static.hindawi.com/articles/crionm/volume-2014/297031/figures/297031.fig.004.jpg"
-    mucinous_img_path = tf.keras.utils.get_file('Mucosa', origin=mucinous_img_url)
+    # Get an image from online that wasn't included in the trianing or validation sets
+    mucinous_img = Image.open('mucinous.jpg')
     
-    img = keras.utils.load_img(mucinous_img_path, target_size=(180, 180))
-    
-    img_array = keras.utils.img_to_array(img)
+    img_array = keras.utils.img_to_array(mucinous_img)
     
     # Create a batch
     img_array = tf.expand_dims(img_array, 0)
@@ -320,6 +293,8 @@ def predict_on_new_data(model):
     
     print('This image most likely belongs to {} with a {:2f} percent confidence.'
           .format(class_names[np.argmax(score)], 100 * np.max(score)))
+   
+    
     
    
 # Program entry point
@@ -347,14 +322,6 @@ if __name__ == '__main__':
     # Get the number of classes from the metadata features.
     num_classes = metadata.features['label'].num_classes
     
-    print(num_classes)
-    
-    # DEBUG
-    #for i in class_names:
-    #    print(i)
-    
-    
-    
     # Visualize the data.   
     show_images(images, class_names) 
     plt.imshow(images[0])
@@ -366,11 +333,10 @@ if __name__ == '__main__':
     
     
     # Visualize the data
-    #Note: Image will be enlarged because original size was 150 x 150 pixels.
+    # Note: Image will be enlarged because original size was 150 x 150 pixels.
     result = plt.imshow(scale(images[0], resize_and_rescale)) 
     plt.show()
-    
-    
+      
     
     # Retrieve the first image. Resize and rescale it.
     result = scale(images[0], resize_and_rescale)
@@ -380,20 +346,18 @@ if __name__ == '__main__':
     preprocess_layers(result, data_augmentation)
     
     
-    # Batch, shuffle, and configure the training, validation, and test sets for preformance.
+    # Batch, shuffle, and configure the training, validation, and test sets for performance.
     train_ds = configure_for_performance(train_ds, BUFFER_SIZE, BATCH_SIZE)
     val_ds = configure_for_performance(val_ds, BUFFER_SIZE, BATCH_SIZE)
     test_ds = configure_for_performance(test_ds, BUFFER_SIZE, BATCH_SIZE)
     
     
-
     model = create_model()
     
     # Build the model by providing the input_shape. 5000 images of 150x150 in RGB (3 channels).
     model.build(input_shape=(5000, 150, 150, 3))
     
     model.summary()
-    
     
     epochs = 35
     
