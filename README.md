@@ -12,6 +12,6 @@ Classification of textures in colorectal cancer histology using Python, Numpy, M
 <i>Source: Tensorflow (https://www.tensorflow.org/datasets/catalog/colorectal_histology)</>
 <br>
 <br>
-Currently, the model has an accuracy in the 84-87% range. I plan to continue to improve its accuracy.
+Currently, the model has an accuracy in the 84-87% range. I plan to continue working on the model to improve its accuracy.
 
 
